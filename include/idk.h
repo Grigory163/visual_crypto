@@ -3,12 +3,3 @@
 
 
 
-class Image_reader
-{   
-    public:
-
-    Image_reader()
-    {
-        cv::Mat image = 
-    }
-};

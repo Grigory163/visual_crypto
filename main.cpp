@@ -5,19 +5,19 @@
 #include <filesystem>
 
 void encrypt(const cv::Mat& input, cv::Mat& output1, cv::Mat& output2) {
-    // Убедимся, что изображение черно-белое
+    // CV_8UC1 значит что изображение чб(0-255)
     if (input.type() != CV_8UC1) {
         std::cerr << "Ошибка: входное изображение должно быть черно-белым!" << std::endl;
         return;
     }
 
-    // Создаем выходные изображения с теми же размерами и типом, что и входное
+    // два пустых изображения(массива)
     output1 = cv::Mat::zeros(input.size(), CV_8UC1);
     output2 = cv::Mat::zeros(input.size(), CV_8UC1);
 
-    // Генерируем случайные значения для шифрования
+    // Генерация случайные значения для шифрования
     cv::Mat randomMask = cv::Mat::zeros(input.size(), CV_8UC1);
-    cv::randu(randomMask, cv::Scalar(0), cv::Scalar(255)); // Генерируем случайные значения от 0 до 255
+    cv::randu(randomMask, cv::Scalar(0), cv::Scalar(255)); 
 
     // Проходим по каждому пикселю входного изображения
     for (int y = 0; y < input.rows; ++y) {
@@ -40,7 +40,7 @@ cv::Mat decryptImages(const cv::Mat& encryptedImage1, const cv::Mat& encryptedIm
     }
 
     cv::Mat decryptedImage;
-    // Выполнение операции XOR для восстановления исходного изображения
+    // Выполнение операции XOR
     cv::bitwise_xor(encryptedImage1, encryptedImage2, decryptedImage);
 
     return decryptedImage;
