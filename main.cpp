@@ -1,79 +1,107 @@
-#include <opencv2/opencv.hpp>
-#include <iostream>
-#include <vector>
-#include <string>
-#include <filesystem>
+#include "main.h"
 
-void encrypt(const cv::Mat& input, cv::Mat& output1, cv::Mat& output2) {
-    // CV_8UC1 значит что изображение чб(0-255)
-    if (input.type() != CV_8UC1) {
-        std::cerr << "Ошибка: входное изображение должно быть черно-белым!" << std::endl;
-        return;
+Mat generateRandomMatrix(const Size& size) {
+
+    Mat randomMat = Mat::zeros(size, CV_8U);
+
+    randu(randomMat, Scalar(0), Scalar(256));
+
+    return randomMat;
+}
+
+void splitImage(const Mat& image, vector<Mat>& parts, int n) {
+    Mat gray;
+
+    if (image.channels() > 1) {
+        cvtColor(image, gray, COLOR_BGR2GRAY);
     }
 
-    // два пустых изображения(массива)
-    output1 = cv::Mat::zeros(input.size(), CV_8UC1);
-    output2 = cv::Mat::zeros(input.size(), CV_8UC1);
+    else {
+        gray = image;
+    }
 
-    // Генерация случайные значения для шифрования
-    cv::Mat randomMask = cv::Mat::zeros(input.size(), CV_8UC1);
-    cv::randu(randomMask, cv::Scalar(0), cv::Scalar(255)); 
+    vector<Mat> randomParts(n - 1);
 
-    // Проходим по каждому пикселю входного изображения
-    for (int y = 0; y < input.rows; ++y) {
-        for (int x = 0; x < input.cols; ++x) {
-            // Получаем значение пикселя (0-255)
-            uchar pixelValue = input.at<uchar>(y, x);
-            uchar randomValue = randomMask.at<uchar>(y, x);
+    for (int i = 0; i < n - 1; i++) {
+        randomParts[i] = generateRandomMatrix(gray.size());
+    }
 
-            // Шифруем пиксель с использованием XOR
-            output1.at<uchar>(y, x) = pixelValue ^ randomValue; // Зашифрованное значение в первой части
-            output2.at<uchar>(y, x) = randomValue;             // Случайное значение во второй части
+    Mat lastPart = gray.clone();
+
+    for (int i = 0; i < gray.rows; i++) {
+        for (int j = 0; j < gray.cols; j++) {
+            uchar value = 0;
+            for (int p = 0; p < n - 1; p++) {
+                value ^= randomParts[p].at<uchar>(i, j);
+            }
+            lastPart.at<uchar>(i, j) ^= value;
         }
     }
+
+    parts.push_back(lastPart);
+
+    for (int i = 0; i < n - 1; i++) {
+        parts.push_back(randomParts[i]);
+    }
 }
 
-cv::Mat decryptImages(const cv::Mat& encryptedImage1, const cv::Mat& encryptedImage2) {
-    // Проверка, что размеры изображений совпадают
-    if (encryptedImage1.size() != encryptedImage2.size()) {
-        throw std::invalid_argument("Размеры изображений должны совпадать!");
+Mat restoreImage(const vector<Mat>& parts, int k) {
+
+    Mat restoredImage = Mat::zeros(parts[0].size(), CV_8U);
+
+    for (int i = 0; i < k; i++) {
+        for (int row = 0; row < parts[i].rows; row++) {
+            for (int col = 0; col < parts[i].cols; col++) {
+                restoredImage.at<uchar>(row, col) ^= parts[i].at<uchar>(row, col);
+            }
+        }
     }
 
-    cv::Mat decryptedImage;
-    // Выполнение операции XOR
-    cv::bitwise_xor(encryptedImage1, encryptedImage2, decryptedImage);
-
-    return decryptedImage;
+    return restoredImage;
 }
 
-
 int main() {
-   // srand(static_cast<unsigned int>(time(0)));
-    // Загружаем черно-белое изображение, для того чтоб указать относительный путь, его необходимо прописывать из дериктории build
-    cv::Mat inputImage = cv::imread("/home/kali/Desktop/visual_crypto/z.jpeg", cv::IMREAD_GRAYSCALE);
-    
-    if (inputImage.empty()) {
-        std::cerr << "Ошибка: не удалось загрузить изображение!" << std::endl;
+
+    string imagePath;
+
+    string outputDir;
+    outputDir = "/home/kali/Desktop/visual_crypto/images";
+
+    if (!filesystem::exists(outputDir)) {
+        filesystem::create_directories(outputDir); // Создает все необходимые директории
+    }
+
+    cout << "Enter path to image: ";
+    getline(cin, imagePath); // Считываем путь к изображению
+
+    Mat image = imread(imagePath);
+    if (image.empty()) {
+        cout << "Error while download image" << endl;
         return -1;
     }
 
-    std::string outputDir = "source/";
-    std::filesystem::create_directory(outputDir);
+    if (image.empty()) {
+        cout << "Error while image uploading" << endl;
+        return -1;
+    }
 
-    cv::Mat output1, output2;
-    encrypt(inputImage, output1, output2);
-    cv::imwrite(outputDir + "output1.png", output1);
-    cv::imwrite(outputDir + "output2.png", output2);
 
-    // Показываем результаты
-    // cv::imshow("Original Image", inputImage);
-    // cv::imshow("Encrypted Part 1", output1);
-    // cv::imshow("Encrypted Part 2", output2);
+    int n = 5;
+    vector<Mat> parts;
+
+    splitImage(image, parts, n);
+
+    for (int i = 0; i < n; i++) {
+        imwrite(outputDir + "/part" + to_string(i + 1) + ".jpg", parts[i]);
+    }
+
+    Mat restoredImage = restoreImage(parts, n);
+
+    imshow("Original Image", image);
+
+    imshow("Restored Image", restoredImage);
+
+    waitKey(0);
     
-    cv::Mat original = decryptImages(output1, output2);
-    cv::imwrite(outputDir + "returned.png", original);
-
-
-    //cv::waitKey(0);
     return 0;
 }
